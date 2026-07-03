@@ -1,4 +1,4 @@
---[[ MM2 Premium Utility v4.1 – с улучшенным Auto Farm ]]
+--[[ MM2 Premium Utility v4.2 – часть 1 ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -20,6 +20,7 @@ local State = {
     NameTags = {},
     FarmTask = nil,
     AntiAFKTask = nil,
+    AntiFlingConnections = {},
 }
 
 -- ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (роли, цвета, ESP) =====
@@ -118,11 +119,27 @@ local function UpdateESP()
     end
 end
 
+-- ===== ВОССТАНОВЛЕНИЕ ФИЗИКИ (для отключения noclip) =====
+local function ResetPhysics()
+    if not Character then return end
+    for _, part in ipairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+            part.Massless = false
+        end
+    end
+    local humanoid = Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = false
+        humanoid.UseJumpPower = true
+        humanoid.Sit = false
+    end
+end
+
 -- ===== УЛУЧШЕННЫЙ AUTO FARM =====
 local function StartFarm()
     if State.FarmTask then return end
 
-    -- Функция для применения Noclip ко всем частям персонажа
     local function ApplyNoclip(state)
         if not Character then return end
         for _, part in ipairs(Character:GetDescendants()) do
@@ -132,130 +149,155 @@ local function StartFarm()
         end
     end
 
-    -- Отключаем гравитацию и стандартное поведение
     local function SetFlyMode(state)
         if not Character then return end
         local humanoid = Character:FindFirstChild("Humanoid")
         if humanoid then
             humanoid.PlatformStand = state
-            humanoid.UseJumpPower = false
+            humanoid.UseJumpPower = not state
             humanoid.Sit = false
         end
         for _, part in ipairs(Character:GetDescendants()) do
             if part:IsA("BasePart") then
-                part.CustomPhysicalProperties = PhysicalProperties.new(
-                    0,   -- плотность
-                    0,   -- трение
-                    0,   -- упругость
-                    false, -- включать массу
-                    0    -- масс-коэффициент
-                )
-                part.Massless = true
+                part.Massless = state
+                if state then
+                    part.CustomPhysicalProperties = PhysicalProperties.new(0,0,0,false,0)
+                else
+                    part.CustomPhysicalProperties = PhysicalProperties.new(1,0.3,0.5,true,1)
+                end
             end
         end
     end
 
-    -- Включаем фарм
     ApplyNoclip(true)
     SetFlyMode(true)
 
-    -- Основной цикл фарма
     State.FarmTask = RunService.Heartbeat:Connect(function()
-        if not State.FarmActive then
-            -- Если фарм выключен, но цикл ещё бежит, выходим (но он должен быть отключён)
-            return
-        end
-        if not Character or not Character:FindFirstChild("HumanoidRootPart") then
-            return
-        end
+        if not State.FarmActive then return end
+        if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
 
         local hrp = Character.HumanoidRootPart
 
-        -- Ищем монету (наиболее подходящую)
         local targetCoin = nil
         local closestDist = math.huge
         for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                local name = obj.Name:lower()
-                if (name:find("coin") or name:find("money")) and (obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("TouchInterest")) then
-                    -- Проверяем, что монета существует и видима (может быть уже собрана)
-                    if obj.Parent and obj.Parent:FindFirstChild("Humanoid") == nil then -- не является частью игрока
-                        local dist = (hrp.Position - obj.Position).Magnitude
-                        if dist < closestDist then
-                            closestDist = dist
-                            targetCoin = obj
-                        end
+            if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("money")) then
+                if (obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("TouchInterest")) and obj.Parent and not obj.Parent:FindFirstChild("Humanoid") then
+                    local dist = (hrp.Position - obj.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        targetCoin = obj
                     end
                 end
             end
         end
 
         if targetCoin then
-            local targetPos = targetCoin.Position + Vector3.new(0, 2, 0) -- чуть выше центра
+            local targetPos = targetCoin.Position + Vector3.new(0, 2, 0)
             local direction = (targetPos - hrp.Position).Unit
             local distance = (hrp.Position - targetPos).Magnitude
 
-            -- Если монета рядом (почти достигли)
             if distance < 3 then
-                hrp.Velocity = Vector3.new(0, 0, 0)
-                -- Пытаемся собрать через ClickDetector
+                hrp.Velocity = Vector3.new(0,0,0)
                 local detector = targetCoin:FindFirstChild("ClickDetector")
-                if detector then
-                    fireclickdetector(detector)
-                end
-                -- Принудительно телепортируем на монету, если не сработало
-                hrp.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0, 1, 0))
-                targetCoin.CanTouch = true -- принудительно включаем касание
+                if detector then fireclickdetector(detector) end
+                hrp.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0,1,0))
             else
-                -- Летим со скоростью 20 (фиксировано)
-                local speed = 20
-                hrp.Velocity = direction * speed
-                -- Поворачиваем персонажа к монете
+                hrp.Velocity = direction * 20
                 hrp.CFrame = CFrame.lookAt(hrp.Position, targetPos)
             end
         else
-            -- Если монет нет, останавливаемся
-            hrp.Velocity = Vector3.new(0, 0, 0)
+            hrp.Velocity = Vector3.new(0,0,0)
         end
 
-        -- Постоянно применяем Noclip (на случай появления новых частей)
         ApplyNoclip(true)
-        -- Поддерживаем платформенную стойку и невесомость
         SetFlyMode(true)
     end)
 end
 
--- ===== Anti‑Fling (без изменений) =====
+-- ===== ОПТИМИЗИРОВАННЫЙ ANTI‑FLING =====
+local function SetCollisionForAllPlayers(enable)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CanCollide = enable end
+        end
+    end
+    if Character then
+        local myhrp = Character:FindFirstChild("HumanoidRootPart")
+        if myhrp then myhrp.CanCollide = enable end
+    end
+end
+
+local function SetupAntiFlingForPlayer(player)
+    if player == LocalPlayer then return end
+    player.CharacterAdded:Connect(function(char)
+        local hrp = char:WaitForChild("HumanoidRootPart", 5)
+        if hrp and State.AntiFlingActive then
+            hrp.CanCollide = false
+        end
+    end)
+    if player.Character then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and State.AntiFlingActive then
+            hrp.CanCollide = false
+        end
+    end
+end
+
+local AntiFlingHeartbeat = nil
+
 local function StartAntiFling()
-    local connection = RunService.Stepped:Connect(function()
+    if not State.AntiFlingActive then return end
+
+    SetCollisionForAllPlayers(false)
+
+    local playerAddedConn = Players.PlayerAdded:Connect(function(newPlayer)
+        SetupAntiFlingForPlayer(newPlayer)
+    end)
+    table.insert(State.AntiFlingConnections, playerAddedConn)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            SetupAntiFlingForPlayer(player)
+        end
+    end
+
+    local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+        Character = newChar
+        if State.AntiFlingActive then
+            local hrp = Character:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CanCollide = false end
+        end
+    end)
+    table.insert(State.AntiFlingConnections, charAddedConn)
+
+    if AntiFlingHeartbeat then AntiFlingHeartbeat:Disconnect() end
+    AntiFlingHeartbeat = RunService.Heartbeat:Connect(function()
         if not State.AntiFlingActive then return end
         if not Character then return end
-        
         local hrp = Character:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.Velocity = hrp.Velocity * 0.9
-            hrp.RotVelocity = Vector3.new(0, 0, 0)
-        end
-        
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                for _, part in ipairs(player.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and Character then
-                        for _, mypart in ipairs(Character:GetDescendants()) do
-                            if mypart:IsA("BasePart") then
-                                mypart.CanCollide = false
-                                part.CanCollide = false
-                            end
-                        end
-                    end
-                end
-            end
+            hrp.RotVelocity = Vector3.new(0,0,0)
         end
     end)
-    table.insert(State.Connections, connection)
+    table.insert(State.AntiFlingConnections, AntiFlingHeartbeat)
 end
 
--- ===== Anti‑AFK (без изменений) =====
+local function StopAntiFling()
+    SetCollisionForAllPlayers(true)
+    for _, conn in ipairs(State.AntiFlingConnections) do
+        conn:Disconnect()
+    end
+    State.AntiFlingConnections = {}
+    if AntiFlingHeartbeat then
+        AntiFlingHeartbeat:Disconnect()
+        AntiFlingHeartbeat = nil
+    end
+end
+
+-- ===== Anti‑AFK =====
 local function StartAntiAFK()
     if State.AntiAFKTask then return end
     State.AntiAFKActive = true
@@ -269,8 +311,8 @@ local function StartAntiAFK()
         end
     end)
 end
-
--- ===== GUI (без изменений) =====
+--[[ MM2 Premium Utility v4.2 – часть 2 (GUI и запуск) ]]
+-- ===== GUI С ФОНОМ =====
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MM2Utility"
 ScreenGui.ResetOnSpawn = false
@@ -285,11 +327,22 @@ MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
+-- Фоновое изображение
+local BackgroundImage = Instance.new("ImageLabel")
+BackgroundImage.Size = UDim2.new(1, 0, 1, 0)
+BackgroundImage.Position = UDim2.new(0, 0, 0, 0)
+BackgroundImage.BackgroundTransparency = 1
+BackgroundImage.Image = "https://avatars.mds.yandex.net/i?id=57a1960c8db6ce1374bacc8d2c622049-l&n=13"
+BackgroundImage.ScaleType = Enum.ScaleType.Fit
+BackgroundImage.ImageTransparency = 0.3
+BackgroundImage.ZIndex = 0
+BackgroundImage.Parent = MainFrame
+
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = MainFrame
 
--- Drag (поддержка мыши и касания)
+-- Drag
 local Dragging = false
 local DragStart, DragStartPos
 
@@ -358,6 +411,7 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
+-- Кнопка Show (плавающая)
 local ShowButtonGui = Instance.new("ScreenGui")
 ShowButtonGui.Name = "ShowButton"
 ShowButtonGui.ResetOnSpawn = false
@@ -377,7 +431,7 @@ ShowBtn.Parent = ShowButtonGui
 local ShowCorner = Instance.new("UICorner")
 ShowCorner.CornerRadius = UDim.new(1, 0)
 ShowCorner.Parent = ShowBtn
--- Drag для кнопки показа
+
 local ShowDrag = false
 local ShowDragStart, ShowDragStartPos
 ShowBtn.InputBegan:Connect(function(input)
@@ -434,6 +488,10 @@ CloseBtn.MouseButton1Click:Connect(function()
     
     if State.FarmTask then State.FarmTask:Disconnect(); State.FarmTask = nil end
     if State.AntiAFKTask then task.cancel(State.AntiAFKTask); State.AntiAFKTask = nil end
+    
+    StopAntiFling()
+    ResetPhysics()
+    
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     State.Connections = {}
     
@@ -446,6 +504,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     ShowButtonGui:Destroy()
 end)
 
+-- Создание переключателей
 local function CreateToggle(name, label, yPos, stateVar)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -20, 0, 30)
@@ -483,32 +542,25 @@ local function CreateToggle(name, label, yPos, stateVar)
             btn.Text = "ON"
             if stateVar == "FarmActive" then StartFarm() end
             if stateVar == "ESPActive" then UpdateESP() end
-            if stateVar == "AntiFlingActive" then StartAntiFling() end
+            if stateVar == "AntiFlingActive" then 
+                StartAntiFling() 
+            end
             if stateVar == "AntiAFKActive" then StartAntiAFK() end
         else
             btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
             btn.Text = "OFF"
             if stateVar == "FarmActive" then
                 if State.FarmTask then State.FarmTask:Disconnect(); State.FarmTask = nil end
-                -- Восстанавливаем коллизии и физику при выключении
-                if Character then
-                    for _, part in ipairs(Character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = true
-                            part.Massless = false
-                        end
-                    end
-                    local humanoid = Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid.PlatformStand = false
-                    end
-                end
+                ResetPhysics()
             end
             if stateVar == "ESPActive" then
                 for _, v in pairs(State.HighlightInstances) do v:Destroy() end
                 for _, v in pairs(State.NameTags) do v:Destroy() end
                 State.HighlightInstances = {}
                 State.NameTags = {}
+            end
+            if stateVar == "AntiFlingActive" then
+                StopAntiFling()
             end
             if stateVar == "AntiAFKActive" then
                 State.AntiAFKActive = false
@@ -541,8 +593,10 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
         StartFarm()
     end
     if State.AntiFlingActive then
-        StartAntiFling()
+        task.wait(0.5)
+        local hrp = Character:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CanCollide = false end
     end
 end)
 
-print("[good]: MM2 Premium v4.1 – Auto Farm полностью переработан. Теперь работает безупречно.")
+print("[good]: MM2 Premium v4.2 – полностью загружен. Фарм отключает noclip, Anti-Fling оптимизирован, фон добавлен.")
