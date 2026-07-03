@@ -1,4 +1,4 @@
---[[ MM2 Premium Utility v5.0 – с прокруткой, ползунками скорости и прыжка, автофарм на каждом раунде ]]
+--[[ MM2 Premium Utility v5.1 – WalkSpeed, автофарм по раундам ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -15,8 +15,8 @@ local State = {
     AntiFlingActive = false,
     AntiAFKActive = false,
     GUIHidden = false,
-    Speed = 22,          -- по умолчанию
-    JumpPower = 50,      -- по умолчанию
+    WalkSpeed = 16,      -- по умолчанию (стандартная скорость)
+    JumpPower = 50,
     Connections = {},
     HighlightInstances = {},
     NameTags = {},
@@ -25,7 +25,7 @@ local State = {
     AntiFlingConnections = {},
 }
 
--- ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (роли, цвета, ESP) =====
+-- ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 local function IsMurderer(player)
     local char = player.Character
     if not char then return false end
@@ -121,7 +121,7 @@ local function UpdateESP()
     end
 end
 
--- ===== ПОЛНЫЙ СБРОС ФИЗИКИ =====
+-- ===== СБРОС ФИЗИКИ =====
 local function ResetPhysics()
     if not Character then return end
     local hrp = Character:FindFirstChild("HumanoidRootPart")
@@ -147,13 +147,14 @@ local function ResetPhysics()
         humanoid.AutoRotate = true
         humanoid.MaxHealth = 100
         humanoid.Health = 100
+        humanoid.WalkSpeed = State.WalkSpeed  -- применяем текущую скорость
         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         task.wait(0.05)
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
 end
 
--- ===== AUTO FARM (с использованием State.Speed) =====
+-- ===== AUTO FARM (с фиксированной скоростью полёта 22) =====
 local function StartFarm()
     if State.FarmTask then return end
 
@@ -173,8 +174,7 @@ local function StartFarm()
             humanoid.PlatformStand = state
             humanoid.UseJumpPower = not state
             humanoid.Sit = false
-            -- применяем текущий JumpPower
-            humanoid.JumpPower = State.JumpPower
+            humanoid.WalkSpeed = State.WalkSpeed  -- сохраняем скорость ходьбы
         end
         for _, part in ipairs(Character:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -193,23 +193,23 @@ local function StartFarm()
 
     State.FarmTask = RunService.Heartbeat:Connect(function()
         if not State.FarmActive then return end
-        if not Character or not Character:FindFirstChild("HumanoidRootPart") then 
-            return 
-        end
-        -- Проверяем, жив ли персонаж (Health > 0)
+        if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
         local humanoid = Character:FindFirstChild("Humanoid")
         if not humanoid or humanoid.Health <= 0 then
+            -- персонаж мёртв – ничего не делаем
             return
         end
 
         local hrp = Character.HumanoidRootPart
 
-        -- Поиск монет
+        -- Ищем монеты
         local targetCoin = nil
         local closestDist = math.huge
+        local foundAny = false
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("money")) then
                 if (obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("TouchInterest")) and obj.Parent and not obj.Parent:FindFirstChild("Humanoid") then
+                    foundAny = true
                     local dist = (hrp.Position - obj.Position).Magnitude
                     if dist < closestDist then
                         closestDist = dist
@@ -230,10 +230,12 @@ local function StartFarm()
                 if detector then fireclickdetector(detector) end
                 hrp.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0,1,0))
             else
-                hrp.Velocity = direction * State.Speed  -- используем скорость из ползунка
+                -- фиксированная скорость 22
+                hrp.Velocity = direction * 22
                 hrp.CFrame = CFrame.lookAt(hrp.Position, targetPos)
             end
         else
+            -- нет монет – стоим на месте
             hrp.Velocity = Vector3.new(0,0,0)
         end
 
@@ -338,7 +340,7 @@ local function StartAntiAFK()
         end
     end)
 end
---[[ MM2 Premium Utility v5.0 – часть 2 (GUI с прокруткой и ползунками) ]]
+--[[ MM2 Premium Utility v5.1 – часть 2 (GUI с ползунками для WalkSpeed и JumpPower) ]]
 -- ===== GUI =====
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MM2Utility"
@@ -346,7 +348,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 320, 0, 420)  -- увеличил высоту
+MainFrame.Size = UDim2.new(0, 320, 0, 420)
 MainFrame.Position = UDim2.new(0.5, -160, 0.5, -210)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 MainFrame.BackgroundTransparency = 0.15
@@ -354,7 +356,7 @@ MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
--- Фоновое изображение (флаг Казахстана) – замени на свою ссылку
+-- Фоновое изображение (флаг Казахстана)
 local BackgroundImage = Instance.new("ImageLabel")
 BackgroundImage.Size = UDim2.new(1, 0, 1, 0)
 BackgroundImage.Position = UDim2.new(0, 0, 0, 0)
@@ -365,7 +367,6 @@ BackgroundImage.ImageTransparency = 0.25
 BackgroundImage.ZIndex = 0
 BackgroundImage.Parent = MainFrame
 
--- Запасной текст
 local FallbackText = Instance.new("TextLabel")
 FallbackText.Size = UDim2.new(1, 0, 1, 0)
 FallbackText.Position = UDim2.new(0, 0, 0, 0)
@@ -382,7 +383,7 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = MainFrame
 
--- Заголовок и кнопки (фиксированные)
+-- Заголовок и кнопки
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -80, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 5)
@@ -422,9 +423,9 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
--- ScrollingFrame для содержимого
+-- ScrollingFrame
 local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, 0, 1, -35)  -- отступаем от заголовка
+ScrollFrame.Size = UDim2.new(1, 0, 1, -35)
 ScrollFrame.Position = UDim2.new(0, 0, 0, 35)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
@@ -433,16 +434,14 @@ ScrollFrame.ScrollBarThickness = 6
 ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
 ScrollFrame.Parent = MainFrame
 
--- Контейнер для всех элементов внутри ScrollFrame (для удобства вычисления CanvasSize)
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, 0, 0, 0)
 Content.BackgroundTransparency = 1
 Content.Parent = ScrollFrame
 
--- Счетчик для позиционирования
 local yPos = 10
 
--- Функция создания переключателей (теперь добавляем в Content)
+-- Функция создания переключателей
 local function CreateToggle(name, label, stateVar)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -20, 0, 30)
@@ -507,26 +506,19 @@ local function CreateToggle(name, label, stateVar)
     return frame
 end
 
--- Создаём тоглы
 CreateToggle("FarmActive", "Auto Farm", "FarmActive")
 CreateToggle("ESPActive", "ESP Wallhack", "ESPActive")
 CreateToggle("AntiFlingActive", "Anti-Fling", "AntiFlingActive")
 CreateToggle("AntiAFKActive", "Anti-AFK", "AntiAFKActive")
 
--- ===== ПОЛЗУНКИ =====
-
--- Функция создания ползунка
-local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
-    -- label - текст над ползунком
-    -- stateKey - ключ в State, например "Speed" или "JumpPower"
-    -- format - функция форматирования значения (например, "%.1f")
+-- Создание ползунка (обобщённая функция)
+local function CreateSlider(label, minVal, maxVal, step, stateKey, format, applyFunc)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -20, 0, 50)
     frame.Position = UDim2.new(0, 10, 0, yPos)
     frame.BackgroundTransparency = 1
     frame.Parent = Content
 
-    -- Текст с названием и значением
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 0, 20)
     lbl.Position = UDim2.new(0, 0, 0, 0)
@@ -538,7 +530,6 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = frame
 
-    -- Фон ползунка
     local sliderBg = Instance.new("Frame")
     sliderBg.Size = UDim2.new(1, 0, 0, 6)
     sliderBg.Position = UDim2.new(0, 0, 0, 25)
@@ -549,7 +540,6 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
     bgCorner.CornerRadius = UDim.new(1, 0)
     bgCorner.Parent = sliderBg
 
-    -- Заполненная часть (индикатор)
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new(0, 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
@@ -559,7 +549,6 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
     fillCorner.CornerRadius = UDim.new(1, 0)
     fillCorner.Parent = fill
 
-    -- Кнопка-ползунок
     local thumb = Instance.new("TextButton")
     thumb.Size = UDim2.new(0, 18, 0, 18)
     thumb.Position = UDim2.new(0, -9, 0.5, -9)
@@ -571,11 +560,9 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
     thumbCorner.CornerRadius = UDim.new(1, 0)
     thumbCorner.Parent = thumb
 
-    -- Переменные для перетаскивания
     local dragging = false
-    local thumbPos = 0  -- от 0 до 1
+    local thumbPos = 0
 
-    -- Функция обновления позиции thumb и fill
     local function UpdateSlider(value)
         local clamped = math.clamp(value, minVal, maxVal)
         local rounded = math.round(clamped / step) * step
@@ -585,22 +572,14 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
         thumb.Position = UDim2.new(ratio, -9, 0.5, -9)
         fill.Size = UDim2.new(ratio, 0, 1, 0)
         lbl.Text = label .. ": " .. string.format(format or "%.1f", rounded)
-        -- Применяем JumpPower сразу
-        if stateKey == "JumpPower" then
-            if Character and Character:FindFirstChild("Humanoid") then
-                Character.Humanoid.JumpPower = rounded
-            end
-        end
+        if applyFunc then applyFunc(rounded) end
     end
 
-    -- Инициализация
     UpdateSlider(State[stateKey])
 
-    -- Обработка ввода на thumb
     thumb.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            -- вычисляем начальную позицию мыши относительно thumb
         end
     end)
 
@@ -610,11 +589,9 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
         end
     end)
 
-    -- Обработка движения мыши (на любом объекте, чтобы не терять)
     UserInputService.InputChanged:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
             local pos = input.Position
-            -- Переводим в координаты sliderBg
             local absPos = sliderBg.AbsolutePosition
             local sizeX = sliderBg.AbsoluteSize.X
             local relativeX = math.clamp((pos.X - absPos.X) / sizeX, 0, 1)
@@ -623,7 +600,6 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
         end
     end)
 
-    -- Также клик по фону для быстрой установки
     sliderBg.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if not dragging then
@@ -641,11 +617,21 @@ local function CreateSlider(label, minVal, maxVal, step, stateKey, format)
     return frame
 end
 
--- Создаём ползунки
-CreateSlider("Speed (Fly)", 0, 30, 0.5, "Speed", "%.1f")
-CreateSlider("Jump Power", 0, 200, 1, "JumpPower", "%.0f")
+-- Ползунок для скорости ходьбы (применяем к Humanoid.WalkSpeed)
+CreateSlider("Walk Speed", 0, 30, 0.5, "WalkSpeed", "%.1f", function(val)
+    if Character and Character:FindFirstChild("Humanoid") then
+        Character.Humanoid.WalkSpeed = val
+    end
+end)
 
--- Обновляем CanvasSize
+-- Ползунок для прыжка
+CreateSlider("Jump Power", 0, 200, 1, "JumpPower", "%.0f", function(val)
+    if Character and Character:FindFirstChild("Humanoid") then
+        Character.Humanoid.JumpPower = val
+    end
+end)
+
+-- Обновление Canvas
 local function UpdateCanvas()
     local totalHeight = yPos + 20
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
@@ -653,7 +639,7 @@ local function UpdateCanvas()
 end
 UpdateCanvas()
 
--- ===== Кнопка Show (плавающая) =====
+-- ===== Кнопка Show =====
 local ShowButtonGui = Instance.new("ScreenGui")
 ShowButtonGui.Name = "ShowButton"
 ShowButtonGui.ResetOnSpawn = false
@@ -758,8 +744,8 @@ end)
 -- Обработка респавна персонажа
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
-    -- Применяем текущий JumpPower к новому персонажу
     if Character and Character:FindFirstChild("Humanoid") then
+        Character.Humanoid.WalkSpeed = State.WalkSpeed
         Character.Humanoid.JumpPower = State.JumpPower
     end
     if State.FarmActive then
@@ -773,4 +759,4 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
 end)
 
-print("[good]: MM2 Premium v5.0 загружен. Прокрутка, ползунки, автофарм на каждом раунде.")
+print("[good]: MM2 Premium v5.1 – WalkSpeed, автофарм по раундам загружены.")
