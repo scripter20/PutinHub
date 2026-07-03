@@ -1,4 +1,4 @@
---[[ MM2 Premium Utility v7.0 – Полный рефакторинг: бесконечный прыжок, автоферма ]]
+--[[ MM2 Premium Utility v8.0 – полностью переработанный автофарм ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,7 +8,6 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Workspace = game:GetService("Workspace")
 
--- Состояние
 local State = {
     FarmActive = false,
     ESPActive = false,
@@ -19,14 +18,12 @@ local State = {
     JumpPower = 50,
     FlySpeed = 22,
     Noclip = false,
-    InfiniteJump = false,
     Connections = {},
     HighlightInstances = {},
     NameTags = {},
     FarmTask = nil,
     AntiAFKTask = nil,
     AntiFlingConnections = {},
-    InfiniteJumpConnection = nil,
     NoclipHeartbeat = nil,
 }
 
@@ -153,27 +150,6 @@ local function StopNoclipHeartbeat()
     ApplyNoclip(false)
 end
 
--- ===== БЕСКОНЕЧНЫЙ ПРЫЖОК (работает в воздухе) =====
-local function SetupInfiniteJump(enable)
-    if enable then
-        if State.InfiniteJumpConnection then return end
-        State.InfiniteJumpConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed then return end
-            if input.KeyCode == Enum.KeyCode.Space and State.InfiniteJump then
-                local humanoid = Character and Character:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-            end
-        end)
-    else
-        if State.InfiniteJumpConnection then
-            State.InfiniteJumpConnection:Disconnect()
-            State.InfiniteJumpConnection = nil
-        end
-    end
-end
-
 -- ===== СБРОС ФИЗИКИ =====
 local function ResetPhysics()
     if not Character then return end
@@ -207,34 +183,61 @@ local function ResetPhysics()
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
 end
--- ===== АВТОФЕРМА (полностью переписана, без остановок) =====
+-- ===== АВТОФАРМ (новая версия) =====
 local function StartFarm()
     if State.FarmTask then return end
 
-    local function SetFlyMode(state)
+    -- Включаем Noclip и режим полёта
+    local function EnableFlyMode()
         if not Character then return end
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.PlatformStand = state
-            humanoid.UseJumpPower = not state
-            humanoid.Sit = false
-            humanoid.WalkSpeed = State.WalkSpeed
+        local hrp = Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CanCollide = false
         end
         for _, part in ipairs(Character:GetDescendants()) do
             if part:IsA("BasePart") then
-                part.Massless = state
-                if state then
-                    part.CustomPhysicalProperties = PhysicalProperties.new(0,0,0,false,0)
-                else
-                    part.CustomPhysicalProperties = PhysicalProperties.new(1,0.3,0.5,true,1)
-                end
+                part.CanCollide = false
+                part.Massless = true
+                part.CustomPhysicalProperties = PhysicalProperties.new(0,0,0,false,0)
             end
+        end
+        local humanoid = Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = true
+            humanoid.UseJumpPower = false
+            humanoid.Sit = false
+            humanoid.WalkSpeed = 0
         end
     end
 
+    -- Отключаем режим полёта (восстанавливаем физику)
+    local function DisableFlyMode()
+        if not Character then return end
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+                part.Massless = false
+                part.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5, true, 1)
+            end
+        end
+        local humanoid = Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid.UseJumpPower = true
+            humanoid.WalkSpeed = State.WalkSpeed
+        end
+    end
+
+    -- Основной цикл
     State.FarmTask = RunService.Heartbeat:Connect(function()
-        if not State.FarmActive then return end
-        if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
+        if not State.FarmActive then
+            -- Если фарм выключен, выходим (но цикл продолжит работу, пока не отключим)
+            return
+        end
+
+        if not Character or not Character:FindFirstChild("HumanoidRootPart") then
+            return
+        end
 
         local hrp = Character.HumanoidRootPart
 
@@ -243,6 +246,7 @@ local function StartFarm()
         local closestDist = math.huge
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("money")) then
+                -- Проверяем, что это действительно монета (есть ClickDetector или TouchInterest)
                 if (obj:FindFirstChild("ClickDetector") or obj:FindFirstChild("TouchInterest")) and obj.Parent and not obj.Parent:FindFirstChild("Humanoid") then
                     local dist = (hrp.Position - obj.Position).Magnitude
                     if dist < closestDist then
@@ -253,25 +257,32 @@ local function StartFarm()
             end
         end
 
+        -- Применяем режим полёта (включая Noclip)
+        EnableFlyMode()
+
         if targetCoin then
             local targetPos = targetCoin.Position + Vector3.new(0, 2, 0)
             local direction = (targetPos - hrp.Position).Unit
             local distance = (hrp.Position - targetPos).Magnitude
 
             if distance < 3 then
+                -- Остановка и сбор
                 hrp.Velocity = Vector3.new(0,0,0)
                 local detector = targetCoin:FindFirstChild("ClickDetector")
-                if detector then fireclickdetector(detector) end
+                if detector then
+                    fireclickdetector(detector)
+                end
+                -- Принудительно телепортируем на монету для надёжности
                 hrp.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0,1,0))
             else
+                -- Летим к монете
                 hrp.Velocity = direction * State.FlySpeed
                 hrp.CFrame = CFrame.lookAt(hrp.Position, targetPos)
             end
         else
+            -- Монет нет – стоим на месте
             hrp.Velocity = Vector3.new(0,0,0)
         end
-
-        SetFlyMode(true)
     end)
 end
 
@@ -685,11 +696,6 @@ local _, yPosP = CreateToggleInPanel(PlayerPanel, "Noclip", "Noclip", yPosP, fun
 end, function()
     StopNoclipHeartbeat()
 end)
-local _, yPosP = CreateToggleInPanel(PlayerPanel, "Infinite Jump", "InfiniteJump", yPosP, function()
-    SetupInfiniteJump(true)
-end, function()
-    SetupInfiniteJump(false)
-end)
 
 -- Заполнение GeneralPanel
 local yPosG = 10
@@ -698,6 +704,22 @@ local _, yPosG = CreateToggleInPanel(GeneralPanel, "Auto Farm", "FarmActive", yP
 end, function()
     if State.FarmTask then State.FarmTask:Disconnect(); State.FarmTask = nil end
     ResetPhysics()
+    -- Отключаем полётный режим
+    if Character then
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+                part.Massless = false
+                part.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5, true, 1)
+            end
+        end
+        local humanoid = Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid.UseJumpPower = true
+            humanoid.WalkSpeed = State.WalkSpeed
+        end
+    end
 end)
 local _, yPosG = CreateToggleInPanel(GeneralPanel, "ESP Wallhack", "ESPActive", yPosG, UpdateESP, function()
     for _, v in pairs(State.HighlightInstances) do v:Destroy() end
@@ -813,15 +835,12 @@ CloseBtn.MouseButton1Click:Connect(function()
     State.AntiFlingActive = false
     State.AntiAFKActive = false
     State.Noclip = false
-    State.InfiniteJump = false
     
     if State.FarmTask then State.FarmTask:Disconnect(); State.FarmTask = nil end
     if State.AntiAFKTask then task.cancel(State.AntiAFKTask); State.AntiAFKTask = nil end
-    if State.InfiniteJumpConnection then State.InfiniteJumpConnection:Disconnect(); State.InfiniteJumpConnection = nil end
     
     StopAntiFling()
     StopNoclipHeartbeat()
-    SetupInfiniteJump(false)
     ResetPhysics()
     
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
@@ -855,9 +874,6 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
         StartNoclipHeartbeat()
         ApplyNoclip(true)
     end
-    if State.InfiniteJump then
-        SetupInfiniteJump(true)
-    end
     if State.FarmActive then
         if State.FarmTask then State.FarmTask:Disconnect() end
         StartFarm()
@@ -869,4 +885,4 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
 end)
 
-print("[good]: MM2 Premium v7.0 – Полный рефакторинг: бесконечный прыжок, автоферма.")
+print("[good]: MM2 Premium v8.0 – полностью переработанный автофарм загружен.")
