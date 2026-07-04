@@ -1,4 +1,4 @@
---[[ PutinHub v3.2 – ЧАСТЬ 1 ]]
+--[[ PutinHub v3.4 – ЧАСТЬ 1 (мгновенное обновление) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -19,7 +19,7 @@ local State = {
     ESPNames = {},
 }
 
--- === РОЛИ С КЕШЕМ ===
+-- === РОЛИ ===
 local RoleCache = {}
 
 local function IsMurderer(p)
@@ -70,12 +70,15 @@ local function UpdatePlayerRole(p)
         return
     end
     if HasGun(p) then
-        if RoleCache[p] == "Sheriff" then
-            return
-        else
-            RoleCache[p] = "Hero"
+        if RoleCache[p] == nil then
+            RoleCache[p] = "Sheriff"
             return
         end
+        if RoleCache[p] == "Sheriff" then
+            return
+        end
+        RoleCache[p] = "Hero"
+        return
     end
     RoleCache[p] = "Innocent"
 end
@@ -94,37 +97,50 @@ local function GetRoleColor(role)
     return Color3.fromRGB(50, 255, 50)
 end
 
--- Обновление ролей
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LocalPlayer then
-        p.CharacterAdded:Connect(function()
-            task.wait(0.5)
+-- === МГНОВЕННОЕ ОБНОВЛЕНИЕ ===
+local function RefreshAllRoles()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
             UpdatePlayerRole(p)
-        end)
-        task.wait(0.5)
-        UpdatePlayerRole(p)
+        end
+    end
+    if State.ESP then
+        UpdateESP()
     end
 end
 
 Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(function()
-        task.wait(0.5)
         UpdatePlayerRole(p)
+        if State.ESP then UpdateESP() end
     end)
+    if p.Character then
+        UpdatePlayerRole(p)
+        if State.ESP then UpdateESP() end
+    end
 end)
 
 Players.PlayerRemoving:Connect(function(p)
     RoleCache[p] = nil
+    if State.ESP then UpdateESP() end
 end)
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then
+        p.CharacterAdded:Connect(function()
+            UpdatePlayerRole(p)
+            if State.ESP then UpdateESP() end
+        end)
+        if p.Character then
+            UpdatePlayerRole(p)
+        end
+    end
+end
 
 task.spawn(function()
     while true do
-        task.wait(3)
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                UpdatePlayerRole(p)
-            end
-        end
+        task.wait(2)
+        RefreshAllRoles()
     end
 end)
 
@@ -169,16 +185,7 @@ local function UpdateESP()
     end
 end
 
-local function StartESPUpdater()
-    task.spawn(function()
-        while ScreenGui and ScreenGui.Parent do
-            if State.ESP then UpdateESP() end
-            task.wait(2)
-        end
-    end)
-end
-
--- === GUI (ДО ВКЛАДОК) ===
+-- === GUI ===
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 420, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -210, 0.5, -160)
@@ -242,7 +249,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 60, 0, 20)
 SubTitle.Position = UDim2.new(1, -75, 0, 2)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = "v3.2"
+SubTitle.Text = "v3.4"
 SubTitle.TextColor3 = Color3.fromRGB(150, 200, 150)
 SubTitle.TextSize = 13
 SubTitle.Font = Enum.Font.Gotham
@@ -322,7 +329,7 @@ NoBtn.Parent = DialogFrame
 local NoCorner = Instance.new("UICorner")
 NoCorner.CornerRadius = UDim.new(0, 6)
 NoCorner.Parent = NoBtn
---[[ PutinHub v3.2 – ЧАСТЬ 2 ]]
+--[[ PutinHub v3.4 – ЧАСТЬ 2 ]]
 
 local TabsFrame = Instance.new("Frame")
 TabsFrame.Size = UDim2.new(1, -20, 0, 36)
@@ -418,7 +425,9 @@ local function CreateToggle(text, stateKey, yPos, onFunc, offFunc)
     end)
 end
 
-CreateToggle("ESP Wallhack", "ESP", 10, UpdateESP, function()
+CreateToggle("ESP Wallhack", "ESP", 10, function()
+    UpdateESP()
+end, function()
     for _, v in pairs(State.ESPHighlights) do v:Destroy() end
     for _, v in pairs(State.ESPNames) do v:Destroy() end
     State.ESPHighlights = {}
@@ -428,7 +437,7 @@ end)
 local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Size = UDim2.new(1, 0, 1, 0)
 InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "PutinHub v3.2\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
+InfoLabel.Text = "PutinHub v3.4\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
 InfoLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
 InfoLabel.TextSize = 16
 InfoLabel.Font = Enum.Font.Gotham
@@ -584,11 +593,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-StartESPUpdater()
-
+-- Запуск
 MainFrame.BackgroundTransparency = 1
 TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
     BackgroundTransparency = 0.1
 }):Play()
 
-print("[good]: PutinHub v3.2 – Sheriff/Hero исправлены.")
+print("[good]: PutinHub v3.4 – мгновенное обновление ролей.")
