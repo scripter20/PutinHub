@@ -1,4 +1,4 @@
---[[ PutinHub v3.1 – ЧАСТЬ 1 ]]
+--[[ PutinHub v3.2 – ЧАСТЬ 1 ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -19,7 +19,9 @@ local State = {
     ESPNames = {},
 }
 
--- === РОЛИ ===
+-- === РОЛИ С КЕШЕМ ===
+local RoleCache = {}
+
 local function IsMurderer(p)
     local c = p.Character
     if not c then return false end
@@ -58,29 +60,31 @@ local function HasGun(p)
     return false
 end
 
-local function GetRole(p)
-    if p == LocalPlayer then return "Innocent" end
-    if IsMurderer(p) then return "Murderer" end
-    if HasGun(p) then
-        local char = p.Character
-        if char then
-            for _, v in ipairs(char:GetDescendants()) do
-                if v:IsA("BasePart") and v.Name:lower():find("sheriff") then
-                    return "Sheriff"
-                end
-            end
-            local bp = p:FindFirstChild("Backpack")
-            if bp then
-                for _, v in ipairs(bp:GetDescendants()) do
-                    if v:IsA("Tool") and v.Name:lower():find("sheriff") then
-                        return "Sheriff"
-                    end
-                end
-            end
-        end
-        return "Hero"
+local function UpdatePlayerRole(p)
+    if p == LocalPlayer then
+        RoleCache[p] = "Innocent"
+        return
     end
-    return "Innocent"
+    if IsMurderer(p) then
+        RoleCache[p] = "Murderer"
+        return
+    end
+    if HasGun(p) then
+        if RoleCache[p] == "Sheriff" then
+            return
+        else
+            RoleCache[p] = "Hero"
+            return
+        end
+    end
+    RoleCache[p] = "Innocent"
+end
+
+local function GetRole(p)
+    if RoleCache[p] == nil then
+        UpdatePlayerRole(p)
+    end
+    return RoleCache[p] or "Innocent"
 end
 
 local function GetRoleColor(role)
@@ -89,6 +93,40 @@ local function GetRoleColor(role)
     if role == "Hero" then return Color3.fromRGB(255, 215, 0) end
     return Color3.fromRGB(50, 255, 50)
 end
+
+-- Обновление ролей
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then
+        p.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            UpdatePlayerRole(p)
+        end)
+        task.wait(0.5)
+        UpdatePlayerRole(p)
+    end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        UpdatePlayerRole(p)
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    RoleCache[p] = nil
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                UpdatePlayerRole(p)
+            end
+        end
+    end
+end)
 
 -- === ESP ===
 local function UpdateESP()
@@ -140,7 +178,7 @@ local function StartESPUpdater()
     end)
 end
 
--- === GUI (до вкладок) ===
+-- === GUI (ДО ВКЛАДОК) ===
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 420, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -210, 0.5, -160)
@@ -204,7 +242,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 60, 0, 20)
 SubTitle.Position = UDim2.new(1, -75, 0, 2)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = "v3.1"
+SubTitle.Text = "v3.2"
 SubTitle.TextColor3 = Color3.fromRGB(150, 200, 150)
 SubTitle.TextSize = 13
 SubTitle.Font = Enum.Font.Gotham
@@ -284,7 +322,7 @@ NoBtn.Parent = DialogFrame
 local NoCorner = Instance.new("UICorner")
 NoCorner.CornerRadius = UDim.new(0, 6)
 NoCorner.Parent = NoBtn
---[[ PutinHub v3.1 – ЧАСТЬ 2 ]]
+--[[ PutinHub v3.2 – ЧАСТЬ 2 ]]
 
 local TabsFrame = Instance.new("Frame")
 TabsFrame.Size = UDim2.new(1, -20, 0, 36)
@@ -390,7 +428,7 @@ end)
 local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Size = UDim2.new(1, 0, 1, 0)
 InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "PutinHub v3.1\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
+InfoLabel.Text = "PutinHub v3.2\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
 InfoLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
 InfoLabel.TextSize = 16
 InfoLabel.Font = Enum.Font.Gotham
@@ -553,4 +591,4 @@ TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.Ea
     BackgroundTransparency = 0.1
 }):Play()
 
-print("[good]: PutinHub v3.1 – ESP с правильным Hero загружен.")
+print("[good]: PutinHub v3.2 – Sheriff/Hero исправлены.")
