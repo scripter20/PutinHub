@@ -388,7 +388,7 @@ local function createTab(name, layoutOrder)
         switchTab(name)
     end)
 end
--- ЧАСТЬ 3 (Скопируй и вставь сразу под второй частью в свой файл на GitHub)
+-- ЧАСТЬ 3 (Скопируй и замени ею прошлую третью часть на GitHub)
 
 -- Инициализация системных окон хаба
 createTab("Main", 1)
@@ -485,7 +485,7 @@ local function createInfoLine(text, layoutOrder, isHeader)
     label.Parent = InfoPage
 end
 
--- Выводим твои данные
+-- Твои обновленные данные
 createInfoLine("📋 СВЕДЕНИЯ О СКРИПТЕ", 1, true)
 createInfoLine("• Версия: 3.9.1 (Kazakhstan Edition)", 2)
 createInfoLine("• Created by: PavelDurak", 3)
@@ -493,8 +493,7 @@ createInfoLine("• Telegram: @vamatuk", 4)
 createInfoLine("• Discord: pavel_durak", 5)
 createInfoLine("──────────────────────────────────", 6)
 createInfoLine("🚀 ОТ РАЗРАБОТЧИКА", 7, true)
-createInfoLine("Скрипт полностью переведён на безопасный режим.", 8)
-createInfoLine("Удачи в MM2! Разноси сервера красиво и без банов. 😎", 9)
+createInfoLine("Скрипт полностью переведён на безопасный режим.", 8) -- Оставили только это предложение
 
 -- Меню безопасности при закрытии (ConfirmFrame)
 local ConfirmFrame = Instance.new("Frame")
@@ -583,4 +582,3 @@ end)
 -- Первоначальный запуск интерфейса в дефолтном стиле
 updateTheme("Green")
 switchTab("Main")
-
