@@ -1,4 +1,4 @@
---[[ PutinHub v4.1 – ЧАСТЬ 1 (секции, скролл, классический Fly) ]]
+--[[ PutinHub v4.2 – ЧАСТЬ 1 (мобильный Fly) ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -28,6 +28,7 @@ local State = {
     NoclipHeartbeat = nil,
     FlyBodyGyro = nil,
     FlyBodyVelocity = nil,
+    FlyUpDown = 0,
     CleanupFunctions = {},
     GuiVisible = true,
 }
@@ -172,10 +173,8 @@ local function StopNoclip()
     ApplyNoclip(false)
 end
 
--- === FLY (классический, как в примере) ===
-local flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-local flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
-local flySpeed = 0
+-- === FLY (МОБИЛЬНАЯ ВЕРСИЯ) ===
+local flyMoveDirection = Vector3.new(0, 0, 0)
 
 local function StartFly()
     if State.FlyBodyGyro or State.FlyBodyVelocity then
@@ -192,7 +191,6 @@ local function StartFly()
         humanoid.PlatformStand = true
     end
     
-    -- Создаём BodyGyro и BodyVelocity на основе твоего примера
     local bg = Instance.new("BodyGyro", hrp)
     bg.P = 9e4
     bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
@@ -204,10 +202,7 @@ local function StartFly()
     bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
     State.FlyBodyVelocity = bv
     
-    -- Сбрасываем управление
-    flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-    flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
-    flySpeed = 0
+    flyMoveDirection = Vector3.new(0, 0, 0)
     
     table.insert(State.CleanupFunctions, function()
         StopFly()
@@ -226,35 +221,10 @@ local function StopFly()
     if Character and Character:FindFirstChild("Humanoid") then
         Character.Humanoid.PlatformStand = false
     end
-    flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-    flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
-    flySpeed = 0
+    flyMoveDirection = Vector3.new(0, 0, 0)
 end
 
--- Обработка клавиш для Fly
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if not State.Fly then return end
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then flyCtrl.f = 1
-    elseif key == Enum.KeyCode.S then flyCtrl.b = 1
-    elseif key == Enum.KeyCode.A then flyCtrl.l = 1
-    elseif key == Enum.KeyCode.D then flyCtrl.r = 1
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if not State.Fly then return end
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then flyCtrl.f = 0
-    elseif key == Enum.KeyCode.S then flyCtrl.b = 0
-    elseif key == Enum.KeyCode.A then flyCtrl.l = 0
-    elseif key == Enum.KeyCode.D then flyCtrl.r = 0
-    end
-end)
-
--- Основной цикл Fly (как в примере)
+-- Основной цикл Fly (для мобилы – через джойстик)
 local flyHeartbeat = nil
 local function StartFlyHeartbeat()
     if flyHeartbeat then return end
@@ -275,38 +245,28 @@ local function StartFlyHeartbeat()
             return
         end
         
-        local camera = workspace.CurrentCamera
-        local ctrl = flyCtrl
-        local lastctrl = flyLastCtrl
-        local maxspeed = State.FlySpeed or 22
-        
-        -- Обновляем скорость
-        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-            flySpeed = flySpeed + 0.5 + (flySpeed / maxspeed)
-            if flySpeed > maxspeed then
-                flySpeed = maxspeed
-            end
-        elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and flySpeed ~= 0 then
-            flySpeed = flySpeed - 1
-            if flySpeed < 0 then
-                flySpeed = 0
-            end
+        -- Получаем направление от джойстика (Humanoid.MoveDirection)
+        local humanoid = Character:FindFirstChild("Humanoid")
+        local moveDir = Vector3.new(0, 0, 0)
+        if humanoid then
+            moveDir = humanoid.MoveDirection
         end
         
-        -- Применяем движение
-        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-            local look = camera.CoordinateFrame.lookVector
-            local right = camera.CoordinateFrame.RightVector
-            local up = camera.CoordinateFrame.UpVector
-            local moveVec = look * (ctrl.f + ctrl.b) + right * (ctrl.l + ctrl.r)
-            if moveVec.Magnitude > 0 then
-                bv.velocity = moveVec.Unit * flySpeed
-                bg.cframe = CFrame.lookAt(hrp.Position, hrp.Position + moveVec)
-            end
-            flyLastCtrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-        elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and flySpeed ~= 0 then
-            -- Плавное затухание
-            bv.velocity = bv.velocity * 0.95
+        -- Добавляем управление вверх/вниз через кнопки
+        local upDown = State.FlyUpDown or 0
+        
+        -- Собираем итоговое направление
+        local camera = workspace.CurrentCamera
+        local forward = camera.CFrame.LookVector * moveDir.Z
+        local right = camera.CFrame.RightVector * moveDir.X
+        local up = Vector3.new(0, upDown, 0)
+        
+        local finalDir = forward + right + up
+        
+        if finalDir.Magnitude > 0 then
+            finalDir = finalDir.Unit
+            bv.velocity = finalDir * State.FlySpeed
+            bg.cframe = CFrame.lookAt(hrp.Position, hrp.Position + finalDir)
         else
             bv.velocity = Vector3.new(0, 0, 0)
         end
@@ -348,10 +308,10 @@ local function StopAntiAFK()
     end
 end
 
--- === GUI (основное окно) ===
+-- === GUI ===
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 420, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 420, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -210)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
@@ -412,7 +372,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 60, 0, 20)
 SubTitle.Position = UDim2.new(1, -75, 0, 2)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = "v4.1"
+SubTitle.Text = "v4.2"
 SubTitle.TextColor3 = Color3.fromRGB(150, 200, 150)
 SubTitle.TextSize = 13
 SubTitle.Font = Enum.Font.Gotham
@@ -492,7 +452,7 @@ NoBtn.Parent = DialogFrame
 local NoCorner = Instance.new("UICorner")
 NoCorner.CornerRadius = UDim.new(0, 6)
 NoCorner.Parent = NoBtn
---[[ PutinHub v4.1 – ЧАСТЬ 2 ]]
+--[[ PutinHub v4.2 – ЧАСТЬ 2 ]]
 
 local TabsFrame = Instance.new("Frame")
 TabsFrame.Size = UDim2.new(1, -20, 0, 36)
@@ -527,7 +487,6 @@ ContentFrame.Position = UDim2.new(0, 10, 0, 90)
 ContentFrame.BackgroundTransparency = 1
 ContentFrame.Parent = MainFrame
 
--- ScrollingFrame для прокрутки
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Size = UDim2.new(1, 0, 1, 0)
 ScrollFrame.BackgroundTransparency = 1
@@ -559,7 +518,6 @@ InfoContent.BackgroundTransparency = 1
 InfoContent.Parent = ContentContainer
 InfoContent.Visible = false
 
--- Функция обновления Canvas
 local function UpdateCanvas()
     local h1, h2, h3 = 0, 0, 0
     for _, c in ipairs(PlayerContent:GetChildren()) do
@@ -587,7 +545,7 @@ local function UpdateCanvas()
     ContentContainer.Size = UDim2.new(1, 0, 0, math.max(h1, h2, h3) + 20)
 end
 
--- === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ GUI ===
+-- === GUI ЭЛЕМЕНТЫ ===
 local function CreateSlider(panel, label, minVal, maxVal, step, stateKey, format, yPos, applyFunc)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, -20, 0, 45)
@@ -748,7 +706,6 @@ local function CreateSectionLabel(panel, text, yPos)
     l.TextYAlignment = Enum.TextYAlignment.Center
     l.Parent = f
 
-    -- Декоративная линия
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0.5, 0, 0, 1)
     line.Position = UDim2.new(0, 110, 0.5, 0)
@@ -760,63 +717,119 @@ local function CreateSectionLabel(panel, text, yPos)
     return f, yPos + 30
 end
 
--- === ЗАПОЛНЕНИЕ PLAYER ВКЛАДКИ ===
+-- Кнопки вверх/вниз для Fly (мобильные)
+local function CreateFlyButtons(panel, yPos)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, -20, 0, 30)
+    f.Position = UDim2.new(0, 10, 0, yPos)
+    f.BackgroundTransparency = 1
+    f.Parent = panel
+
+    local upBtn = Instance.new("TextButton")
+    upBtn.Size = UDim2.new(0, 60, 1, 0)
+    upBtn.Position = UDim2.new(0, 0, 0, 0)
+    upBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 50)
+    upBtn.Text = "▲"
+    upBtn.TextColor3 = Color3.fromRGB(200, 255, 200)
+    upBtn.TextSize = 18
+    upBtn.Font = Enum.Font.GothamBold
+    upBtn.Parent = f
+    local upCorner = Instance.new("UICorner")
+    upCorner.CornerRadius = UDim.new(0, 6)
+    upCorner.Parent = upBtn
+
+    local downBtn = Instance.new("TextButton")
+    downBtn.Size = UDim2.new(0, 60, 1, 0)
+    downBtn.Position = UDim2.new(1, -60, 0, 0)
+    downBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 100)
+    downBtn.Text = "▼"
+    downBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+    downBtn.TextSize = 18
+    downBtn.Font = Enum.Font.GothamBold
+    downBtn.Parent = f
+    local downCorner = Instance.new("UICorner")
+    downCorner.CornerRadius = UDim.new(0, 6)
+    downCorner.Parent = downBtn
+
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(0, 70, 1, 0)
+    info.Position = UDim2.new(0.5, -35, 0, 0)
+    info.BackgroundTransparency = 1
+    info.Text = "Вверх/Вниз"
+    info.TextColor3 = Color3.fromRGB(150, 200, 150)
+    info.TextSize = 11
+    info.Font = Enum.Font.Gotham
+    info.TextXAlignment = Enum.TextXAlignment.Center
+    info.Parent = f
+
+    upBtn.MouseButton1Down:Connect(function()
+        State.FlyUpDown = 1
+    end)
+    upBtn.MouseButton1Up:Connect(function()
+        State.FlyUpDown = 0
+    end)
+    upBtn.MouseLeave:Connect(function()
+        State.FlyUpDown = 0
+    end)
+    upBtn.TouchEnded:Connect(function()
+        State.FlyUpDown = 0
+    end)
+
+    downBtn.MouseButton1Down:Connect(function()
+        State.FlyUpDown = -1
+    end)
+    downBtn.MouseButton1Up:Connect(function()
+        State.FlyUpDown = 0
+    end)
+    downBtn.MouseLeave:Connect(function()
+        State.FlyUpDown = 0
+    end)
+    downBtn.TouchEnded:Connect(function()
+        State.FlyUpDown = 0
+    end)
+
+    return f, yPos + 35
+end
+
+-- === ЗАПОЛНЕНИЕ PLAYER ===
 local yP = 10
 
--- Секция Movement
 local _, yP = CreateSectionLabel(PlayerContent, "Movement", yP)
-
--- WalkSpeed
 local _, yP = CreateSlider(PlayerContent, "Walk Speed", 1, 30, 0.5, "WalkSpeed", "%.1f", yP, function(val)
     if Character and Character:FindFirstChild("Humanoid") then
         Character.Humanoid.WalkSpeed = val
     end
 end)
-
--- JumpPower
 local _, yP = CreateSlider(PlayerContent, "Jump Power", 1, 200, 1, "JumpPower", "%.0f", yP, function(val)
     if Character and Character:FindFirstChild("Humanoid") then
         Character.Humanoid.JumpPower = val
     end
 end)
-
--- Fly (с включением полного цикла)
 local _, yP = CreateToggle(PlayerContent, "Fly", "Fly", yP, function()
     StartFly()
     StartFlyHeartbeat()
 end, function()
     StopFly()
-    if flyHeartbeat then
-        flyHeartbeat:Disconnect()
-        flyHeartbeat = nil
-    end
+    if flyHeartbeat then flyHeartbeat:Disconnect(); flyHeartbeat = nil end
 end)
-
--- Fly Speed
 local _, yP = CreateSlider(PlayerContent, "Fly Speed", 1, 50, 0.5, "FlySpeed", "%.1f", yP, nil)
+local _, yP = CreateFlyButtons(PlayerContent, yP)
 
--- Секция Other
 local _, yP = CreateSectionLabel(PlayerContent, "Other", yP)
-
--- Noclip
 local _, yP = CreateToggle(PlayerContent, "Noclip", "Noclip", yP, function()
     StartNoclip()
     ApplyNoclip(true)
 end, function()
     StopNoclip()
 end)
-
--- Anti-AFK
 local _, yP = CreateToggle(PlayerContent, "Anti-AFK", "AntiAFK", yP, StartAntiAFK, StopAntiAFK)
-
--- Anti-Fling (заглушка)
 local _, yP = CreateToggle(PlayerContent, "Anti-Fling", nil, yP, function()
     print("Anti-Fling пока не реализован")
 end, function()
     print("Anti-Fling пока не реализован")
 end)
 
--- === ЗАПОЛНЕНИЕ MAIN ВКЛАДКИ ===
+-- === MAIN ===
 local yM = 10
 local function CreateToggleMain(label, stateKey, yPos, onFunc, offFunc)
     local f = Instance.new("Frame")
@@ -878,7 +891,7 @@ end)
 local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Size = UDim2.new(1, 0, 1, 0)
 InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "PutinHub v4.1\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
+InfoLabel.Text = "PutinHub v4.2\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
 InfoLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
 InfoLabel.TextSize = 16
 InfoLabel.Font = Enum.Font.Gotham
@@ -1016,14 +1029,9 @@ local function CleanupAll()
     if espUpdater then task.cancel(espUpdater); espUpdater = nil end
     StopNoclip()
     StopFly()
-    if flyHeartbeat then
-        flyHeartbeat:Disconnect()
-        flyHeartbeat = nil
-    end
+    if flyHeartbeat then flyHeartbeat:Disconnect(); flyHeartbeat = nil end
     StopAntiAFK()
-    for _, func in ipairs(State.CleanupFunctions) do
-        pcall(func)
-    end
+    for _, func in ipairs(State.CleanupFunctions) do pcall(func) end
     State.CleanupFunctions = {}
 end
 
@@ -1073,14 +1081,12 @@ TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.Ea
     BackgroundTransparency = 0.1
 }):Play()
 
--- Применяем начальные значения
 task.wait(0.5)
 if Character and Character:FindFirstChild("Humanoid") then
     Character.Humanoid.WalkSpeed = State.WalkSpeed
     Character.Humanoid.JumpPower = State.JumpPower
 end
 
--- Обработка респавна
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
     task.wait(0.2)
@@ -1098,4 +1104,4 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
 end)
 
-print("[good]: PutinHub v4.1 – классический Fly, секции, скролл загружены.")
+print("[good]: PutinHub v4.2 – мобильный Fly загружен.")
