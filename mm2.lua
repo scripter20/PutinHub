@@ -194,7 +194,7 @@ ContentFrame.ZIndex = 2
 ContentFrame.Parent = MainFrame
 -- ЧАСТЬ 2 (Скопируй и вставь сразу под первой частью в свой файл на GitHub)
 
--- Настройки всех 7 цветовых тем хаба (С заменой на Казахстан)
+-- Настройки всех 7 цветовых тем хаба
 local themes = {
     Green = {
         MainBg = Color3.fromRGB(15, 25, 15),
@@ -281,18 +281,18 @@ local themes = {
         SelectedStrokeColor = Color3.fromRGB(230, 80, 255)
     },
     Kazakhstan = {
-        MainBg = Color3.fromRGB(12, 32, 45),       -- Глубокий бирюзово-синий
-        TopBarBg = Color3.fromRGB(0, 155, 210),     -- Яркий небесно-голубой
-        TitleText = Color3.fromRGB(255, 215, 0),    -- Золотой текст названия
-        Accent = Color3.fromRGB(255, 215, 0),       -- Золотой разделитель
+        MainBg = Color3.fromRGB(12, 32, 45),       
+        TopBarBg = Color3.fromRGB(0, 155, 210),     
+        TitleText = Color3.fromRGB(255, 215, 0),    
+        Accent = Color3.fromRGB(255, 215, 0),       
         TabBg = Color3.fromRGB(16, 46, 64),
         TabText = Color3.fromRGB(0, 180, 240),
-        ActiveTabBg = Color3.fromRGB(255, 215, 0),  -- Золотая активная вкладка
+        ActiveTabBg = Color3.fromRGB(255, 215, 0),  
         ActiveTabText = Color3.fromRGB(12, 32, 45),
         CardBg = Color3.fromRGB(16, 46, 64),
         CardStroke = Color3.fromRGB(255, 215, 0),
         LabelText = Color3.fromRGB(255, 255, 255),
-        SelectedStrokeColor = Color3.fromRGB(255, 215, 0) -- Мощное неоново-золотое свечение кнопки
+        SelectedStrokeColor = Color3.fromRGB(255, 215, 0) 
     }
 }
 
@@ -321,14 +321,16 @@ local function updateTheme(themeName)
             stroke.Thickness = 2.5
         else
             stroke.Enabled = false
-        end
+        }
     end
 
-    -- Адаптация текстов внутри страницы кастомизации
-    if pages["Theme"] then
-        for _, object in ipairs(pages["Theme"]:GetDescendants()) do
-            if object:IsA("TextLabel") and not object.Name:find("Btn") then
-                object.TextColor3 = currentTheme.LabelText
+    -- Адаптация текстов внутри страниц Кастомизации и Инфо
+    for _, pageName in ipairs({"Theme", "Info"}) do
+        if pages[pageName] then
+            for _, object in ipairs(pages[pageName]:GetDescendants()) do
+                if object:IsA("TextLabel") and not object.Name:find("Btn") then
+                    object.TextColor3 = currentTheme.LabelText
+                end
             end
         end
     end
@@ -395,9 +397,8 @@ createTab("AutoFarm", 3)
 createTab("Theme", 4)
 createTab("Info", 5)
 
--- Настройка автоматической адаптивной сетки под 7 элементов
+-- Настройка вкладки Theme (Кастомизация)
 local ThemePage = pages["Theme"]
-
 local ThemeGrid = Instance.new("UIGridLayout")
 ThemeGrid.CellSize = UDim2.new(0, 72, 0, 80)
 ThemeGrid.CellPadding = UDim2.new(0, 12, 0, 12)
@@ -405,7 +406,6 @@ ThemeGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 ThemeGrid.VerticalAlignment = Enum.VerticalAlignment.Center
 ThemeGrid.Parent = ThemePage
 
--- Вспомогательный генератор карточек тем
 local function createThemeBlock(themeKey, blockColor, displayName)
     local blockFrame = Instance.new("Frame")
     blockFrame.Name = themeKey .. "Container"
@@ -426,12 +426,10 @@ local function createThemeBlock(themeKey, blockColor, displayName)
     btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = colorBtn
 
-    -- Обводка для красивого яркого выделения
     local btnStroke = Instance.new("UIStroke")
     btnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     btnStroke.Enabled = false
     btnStroke.Parent = colorBtn
-    
     themeStrokes[themeKey] = btnStroke
 
     local nameLabel = Instance.new("TextLabel")
@@ -452,14 +450,51 @@ local function createThemeBlock(themeKey, blockColor, displayName)
     end)
 end
 
--- Генерация 7 интерактивных кнопок палитр
 createThemeBlock("White", Color3.fromRGB(240, 240, 240), "White")
 createThemeBlock("Black", Color3.fromRGB(35, 35, 35), "Black")
 createThemeBlock("Green", Color3.fromRGB(34, 197, 94), "Green")
 createThemeBlock("Blue", Color3.fromRGB(30, 90, 220), "Blue")
 createThemeBlock("Orange", Color3.fromRGB(234, 88, 12), "Orange")
 createThemeBlock("Purple", Color3.fromRGB(130, 40, 210), "Purple")
-createThemeBlock("Kazakhstan", Color3.fromRGB(0, 155, 210), "Kazakh") -- Плитка небесно-голубого цвета
+createThemeBlock("Kazakhstan", Color3.fromRGB(0, 155, 210), "Kazakh")
+
+-- НАПОЛНЕНИЕ ВКЛАДКИ INFO (Красивое вертикальное меню контактов)
+local InfoPage = pages["Info"]
+
+local InfoList = Instance.new("UIListLayout")
+InfoList.Padding = UDim.new(0, 4)
+InfoList.SortOrder = Enum.SortOrder.LayoutOrder
+InfoList.Parent = InfoPage
+
+local InfoPadding = Instance.new("UIPadding")
+InfoPadding.PaddingLeft = UDim.new(0, 15)
+InfoPadding.PaddingTop = UDim.new(0, 10)
+InfoPadding.Parent = InfoPage
+
+local function createInfoLine(text, layoutOrder, isHeader)
+    local label = Instance.new("TextLabel")
+    label.Name = "InfoLabel_" .. layoutOrder
+    label.Size = UDim2.new(1, -20, 0, isHeader and 22 or 16)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextSize = isHeader and 15 or 13
+    label.Font = isHeader and Enum.Font.GothamBold or Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.LayoutOrder = layoutOrder
+    label.ZIndex = 3
+    label.Parent = InfoPage
+end
+
+-- Выводим твои данные
+createInfoLine("📋 СВЕДЕНИЯ О СКРИПТЕ", 1, true)
+createInfoLine("• Версия: 3.9 (Kazakhstan Edition)", 2)
+createInfoLine("• Created by: PavelDurak", 3)
+createInfoLine("• Telegram: @vamatuk", 4)
+createInfoLine("• Discord: pavel_durak", 5)
+createInfoLine("──────────────────────────────────", 6)
+createInfoLine("🚀 ОТ РАЗРАБОТЧИКА", 7, true)
+createInfoLine("Скрипт полностью переведён на безопасный режим.", 8)
+createInfoLine("Удачи в MM2! Разноси сервера красиво и без банов. 😎", 9)
 
 -- Меню безопасности при закрытии (ConfirmFrame)
 local ConfirmFrame = Instance.new("Frame")
@@ -548,4 +583,3 @@ end)
 -- Первоначальный запуск интерфейса в дефолтном стиле
 updateTheme("Green")
 switchTab("Main")
-
