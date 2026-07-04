@@ -1,9 +1,12 @@
---[[ PutinHub v2.1 – подтверждение закрытия ]]
+--[[ PutinHub v2.3 – ссылка на приватный сервер в консоль ]]
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
+
+-- ССЫЛКА НА ПРИВАТНЫЙ СЕРВЕР (только здесь)
+local PRIVATE_SERVER_URL = "https://www.roblox.com/share?code=1f39d07709726d49ab65e918910dce4c&type=Server"
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PutinHub"
@@ -75,7 +78,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 60, 0, 20)
 SubTitle.Position = UDim2.new(1, -75, 0, 2)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = "v2.1"
+SubTitle.Text = "v2.3"
 SubTitle.TextColor3 = Color3.fromRGB(150, 200, 150)
 SubTitle.TextSize = 13
 SubTitle.Font = Enum.Font.Gotham
@@ -83,7 +86,7 @@ SubTitle.TextXAlignment = Enum.TextXAlignment.Right
 SubTitle.TextYAlignment = Enum.TextYAlignment.Center
 SubTitle.Parent = TopBar
 
--- Кнопка закрытия (теперь с диалогом)
+-- Кнопка закрытия
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 28, 0, 28)
 CloseBtn.Position = UDim2.new(1, -36, 0, 8)
@@ -119,7 +122,6 @@ DialogStroke.Thickness = 2
 DialogStroke.Transparency = 0.3
 DialogStroke.Parent = DialogFrame
 
--- Текст диалога
 local DialogText = Instance.new("TextLabel")
 DialogText.Size = UDim2.new(1, -20, 0, 40)
 DialogText.Position = UDim2.new(0, 10, 0, 10)
@@ -131,7 +133,6 @@ DialogText.Font = Enum.Font.GothamBold
 DialogText.TextXAlignment = Enum.TextXAlignment.Center
 DialogText.Parent = DialogFrame
 
--- Кнопка "Да"
 local YesBtn = Instance.new("TextButton")
 YesBtn.Size = UDim2.new(0, 80, 0, 30)
 YesBtn.Position = UDim2.new(0.5, -85, 0, 65)
@@ -146,7 +147,6 @@ local YesCorner = Instance.new("UICorner")
 YesCorner.CornerRadius = UDim.new(0, 6)
 YesCorner.Parent = YesBtn
 
--- Кнопка "Нет"
 local NoBtn = Instance.new("TextButton")
 NoBtn.Size = UDim2.new(0, 80, 0, 30)
 NoBtn.Position = UDim2.new(0.5, 5, 0, 65)
@@ -215,7 +215,7 @@ InfoContent.Visible = false
 local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Size = UDim2.new(1, 0, 1, 0)
 InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "PutinHub v2.1\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
+InfoLabel.Text = "PutinHub v2.3\nДля Murder Mystery 2\n\nСделано с любовью ❤️"
 InfoLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
 InfoLabel.TextSize = 16
 InfoLabel.Font = Enum.Font.Gotham
@@ -324,7 +324,6 @@ TopButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = guiVisible
 end)
 
--- Функция закрытия с диалогом
 local function ShowDialog()
     DialogFrame.Visible = true
     DialogFrame.BackgroundTransparency = 1
@@ -351,7 +350,6 @@ NoBtn.MouseButton1Click:Connect(function()
     HideDialog()
 end)
 
--- Нажатие вне диалога закрывает его (для телефона)
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch and DialogFrame.Visible then
         local pos = input.Position
@@ -381,4 +379,6 @@ TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.Ea
     BackgroundTransparency = 0.1
 }):Play()
 
-print("[good]: PutinHub v2.1 – подтверждение закрытия.")
+-- Выводим ссылку в консоль (только здесь!)
+print("[good]: PutinHub v2.3 загружен.")
+print("[good]: Приватный сервер: https://www.roblox.com/share?code=1f39d07709726d49ab65e918910dce4c&type=Server")
